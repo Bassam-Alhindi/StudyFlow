@@ -221,13 +221,86 @@ def apply_theme():
     .q-field {max-width:100%}
     .q-field__control {border-radius:10px!important}
     .q-expansion-item__label {overflow-wrap:anywhere}
-    .auth-shell {min-height:100dvh;padding:32px 20px;justify-content:center;align-items:center}
-    .auth-card {width:100%;max-width:420px;padding:32px!important;gap:18px}
-    .auth-title {margin:0;font-size:28px;font-weight:700;line-height:1.25}
-    .auth-card form {display:flex;flex-direction:column;gap:20px;width:100%}
-    .auth-card a {color:#c4b5fd;text-underline-offset:4px}
+    .duration-field {width:100%;gap:8px}
+    .duration-stepper {width:100%;gap:8px;padding:6px;border:1px solid #48415f;
+        border-radius:13px;background:#19172c;align-items:center;flex-wrap:nowrap}
+    .duration-stepper:focus-within {border-color:#aa85ef;box-shadow:0 0 0 3px #8b5cf618}
+    .duration-stepper .q-btn {width:40px;min-width:40px;height:40px;min-height:40px;
+        border-radius:8px;background:#302640;color:#e5d5ff}
+    .duration-stepper .q-btn:hover {background:#483260}
+    .duration-number {flex:1;min-width:0}
+    .duration-stepper .duration-number:focus-within {outline:none}
+    .duration-number input {text-align:center;font-size:17px;font-variant-numeric:tabular-nums;
+        appearance:textfield;-moz-appearance:textfield}
+    .duration-number input::-webkit-inner-spin-button,
+    .duration-number input::-webkit-outer-spin-button {-webkit-appearance:none;margin:0}
+    .duration-number .q-field__suffix {font-size:12px;color:#aaa0bf;padding-left:4px}
+    .duration-preview {color:#cdb8f3;font-size:13px;padding-left:2px;font-variant-numeric:tabular-nums}
+    .auth-shell {position:relative;isolation:isolate;overflow:hidden;min-height:100dvh;
+        padding:48px 24px;justify-content:center;align-items:center;
+        background:radial-gradient(ellipse at 18% 22%,#4d26743d,transparent 52%),
+            radial-gradient(ellipse at 85% 80%,#34327836,transparent 48%),
+            radial-gradient(ellipse at 55% 0%,#251d433d,transparent 60%),#0b0d1c}
+    .auth-shell::before {content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+        background-image:radial-gradient(1px 1px at 12% 19%,#ddd5ff85 95%,transparent),
+            radial-gradient(1px 1px at 84% 14%,#ddd5ff66 95%,transparent),
+            radial-gradient(1px 1px at 72% 73%,#ddd5ff66 95%,transparent),
+            radial-gradient(1px 1px at 21% 85%,#ddd5ff55 95%,transparent),
+            radial-gradient(1px 1px at 93% 49%,#ddd5ff55 95%,transparent);
+        background-size:640px 620px}
+    .auth-shell::after {content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+        background:radial-gradient(ellipse at 50% 42%,#8b5cf610,transparent 60%)}
+    .q-card.auth-card {width:100%;max-width:448px;padding:38px!important;gap:24px;
+        border:1px solid #84709e4d;border-radius:24px!important;
+        background:linear-gradient(145deg,#211a35f5,#151728fa)!important;
+        box-shadow:0 24px 80px #03051166,inset 0 1px #dfc9ff0a;
+        animation:authEntrance .65s cubic-bezier(.2,.7,.3,1) both}
+    .auth-brand {gap:12px;align-items:center;color:#e1d0ff}
+    .auth-brand-name {font-size:25px;font-weight:650;letter-spacing:-.8px}
+    .auth-book {width:54px;height:48px;flex-shrink:0;filter:drop-shadow(0 3px 10px #8b5cf633)}
+    .auth-book svg {width:100%;height:100%;overflow:visible}
+    .book-left,.book-right {transform-origin:40px 32px;transform:rotateY(0deg);
+        animation:bookOpenLeft 1.15s cubic-bezier(.2,.7,.25,1) both}
+    .book-right {animation-name:bookOpenRight}
+    @keyframes bookOpenLeft {from{transform:perspective(160px) rotateY(86deg)}
+        to{transform:perspective(160px) rotateY(0deg)}}
+    @keyframes bookOpenRight {from{transform:perspective(160px) rotateY(-86deg)}
+        to{transform:perspective(160px) rotateY(0deg)}}
+    @keyframes authEntrance {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .auth-intro {gap:10px}
+    .auth-title {margin:0;font-size:31px;font-weight:650;letter-spacing:-1px;line-height:1.2;color:#f8f5ff}
+    .auth-description {color:#b1aac4;font-size:14px;line-height:1.7}
+    .auth-card form {display:flex;flex-direction:column;gap:19px;width:100%}
+    .auth-card .q-field__control {min-height:56px;background:#17162b;border-radius:11px!important;
+        transition:box-shadow .2s,background .2s}
+    .auth-card .q-field--outlined .q-field__control::before {border-color:#6a5c7f80}
+    .auth-card .q-field--highlighted .q-field__control {box-shadow:0 0 0 3px #a477ef12}
+    .auth-card .q-field__label,.auth-card .q-field__append {color:#b7aec9}
+    .auth-card .q-field__native {color:#f4efff;caret-color:#c4a3ff;color-scheme:dark}
+    /* Match browser autofill to the field surface, including focused inputs. */
+    .auth-card input:autofill,
+    .auth-card input:-webkit-autofill {border-radius:4px;caret-color:#c4a3ff;
+        -webkit-text-fill-color:#f4efff!important;
+        box-shadow:0 0 0 100px #17162b inset!important;
+        -webkit-box-shadow:0 0 0 100px #17162b inset!important}
+    .auth-card .auth-submit {min-height:50px;border-radius:11px!important;font-size:15px;
+        box-shadow:0 5px 22px #8645e52b;transition:transform .2s,box-shadow .2s,filter .2s}
+    .auth-card .auth-submit:hover {transform:translateY(-1px);filter:brightness(1.08);
+        box-shadow:0 8px 26px #8645e547}
+    .auth-card .auth-submit:active {transform:translateY(0)}
+    .auth-footer {width:100%;justify-content:center;gap:7px;padding-top:19px;
+        border-top:1px solid #7d6a961f;font-size:13px;color:#aaa2bc}
+    .auth-card a {color:#cfb4ff;text-underline-offset:4px;text-decoration-color:#b38bea66;
+        transition:color .2s,text-decoration-color .2s}
+    .auth-card a:hover {color:#eee2ff;text-decoration-color:#eee2ff}
+    .auth-help {font-size:12px;color:#aaa2bc;line-height:1.7}
+    .auth-error {padding:11px 13px;border:1px solid #f299b333;background:#f299b30a;
+        border-radius:10px;color:#f8b6cb;font-size:13px;width:100%}
     @media(max-width:420px) {
-      .auth-card {padding:24px!important}
+      .auth-shell {padding:28px 16px}
+      .q-card.auth-card {padding:28px 24px!important;gap:22px;border-radius:20px!important}
+      .auth-title {font-size:28px}
+      .auth-brand-name {font-size:24px}
       .focus-card {padding:16px!important}
       .focus-card .focus-primary {padding:9px 12px!important}
       .focus-expanded {padding:16px!important;overflow-y:auto!important}
@@ -248,18 +321,35 @@ def auth_page(request, signup=False):
     title = 'Create your account' if signup else 'Welcome back'
     with ui.column().classes('w-full auth-shell'):
         with ui.card().classes('glass auth-card'):
-            with ui.row().classes('items-center gap-2 text-purple-300'):
-                ui.icon('auto_awesome', size='28px')
-                ui.label('StudyFlow').classes('text-xl font-semibold')
-            ui.label(title).classes('auth-title').props('role=heading aria-level=1')
-            ui.label('Your subjects, study plan, and focus space, together.') \
-                .classes('text-gray-400 text-sm')
+            with ui.row().classes('auth-brand'):
+                # Static SVG; CSS unfolds both pages once and leaves the book open.
+                ui.html('''<svg viewBox="0 0 80 64" fill="none" aria-hidden="true">
+                    <g class="book-left">
+                      <path d="M40 17C30 10 16 9 6 13V51C18 47 29 49 40 56Z" fill="#593497"/>
+                      <path d="M40 15C30 8 18 7 9 11V46C20 43 31 45 40 52Z"
+                            fill="#e9dfff" stroke="#bda0ee" stroke-width="1.3"/>
+                      <path d="M16 20C22 19 29 21 34 24M16 28C22 27 29 29 34 32M16 36C22 35 28 37 32 39"
+                            stroke="#9c7bc7" stroke-width="1.6" stroke-linecap="round"/>
+                    </g>
+                    <g class="book-right">
+                      <path d="M40 17C50 10 64 9 74 13V51C62 47 51 49 40 56Z" fill="#7546b0"/>
+                      <path d="M40 15C50 8 62 7 71 11V46C60 43 49 45 40 52Z"
+                            fill="#f5efff" stroke="#bda0ee" stroke-width="1.3"/>
+                      <path d="M46 24C52 21 59 19 64 20M46 32C52 29 59 27 64 28M48 39C53 37 59 35 64 36"
+                            stroke="#a18bba" stroke-width="1.6" stroke-linecap="round"/>
+                    </g>
+                    <path d="M40 16V53" stroke="#a77ddd" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>''').classes('auth-book')
+                ui.label('StudyFlow').classes('auth-brand-name')
+            with ui.column().classes('auth-intro'):
+                ui.label(title).classes('auth-title').props('role=heading aria-level=1')
+                ui.label('Your subjects, study plan, and focus space, together.').classes('auth-description')
             error = request.query_params.get('error')
             if error:
                 message = ('Too many attempts. Try again in 15 minutes.' if error == 'limited' else
                            'Check your details and try again.' if signup else
                            'Invalid username or password.')
-                ui.label(message).classes('text-red-300 text-sm').props('role=alert')
+                ui.label(message).classes('auth-error').props('role=alert')
             action = 'signup' if signup else 'login'
             with ui.element('form').props(f'method=post action=/auth/{action}'):
                 csrf_field(request)
@@ -268,11 +358,11 @@ def auth_page(request, signup=False):
                     'name=password required minlength=12 maxlength=128 outlined '
                     + ('autocomplete=new-password' if signup else 'autocomplete=current-password'))
                 if signup:
-                    ui.label('Username: 3?40 letters, numbers, or underscores. '
-                             'Password: 12?128 characters.').classes('text-xs text-gray-400')
+                    ui.label('Username: 3–40 letters, numbers, or underscores. '
+                             'Password: 12–128 characters.').classes('auth-help')
                 ui.button('Sign up' if signup else 'Log in').props('type=submit unelevated') \
-                    .classes('add-subject-btn w-full')
-            with ui.row().classes('gap-2 text-sm'):
+                    .classes('add-subject-btn auth-submit w-full')
+            with ui.row().classes('auth-footer'):
                 ui.label('Already have an account?' if signup else 'New to StudyFlow?')
                 ui.link('Log in' if signup else 'Create an account', '/login' if signup else '/signup')
 
@@ -299,6 +389,43 @@ def format_duration(hours):
     if minutes or not whole_hours:
         parts.append(f'{minutes} min')
     return ' '.join(parts)
+
+
+def duration_input(label, value, minimum, maximum):
+    """Keep an editable numeric field; show time clearly and step by 15 minutes."""
+    with ui.column().classes('duration-field'):
+        ui.label(label).classes('text-sm text-gray-300')
+        with ui.row().classes('duration-stepper'):
+            decrease = ui.button(icon='remove').props(f'flat aria-label="Decrease {label}"')
+            field = ui.number(label, value=value, min=minimum, max=maximum, step=0.25,
+                              suffix='hrs').props('borderless dense hide-bottom-space inputmode=decimal') \
+                .classes('duration-number')
+            field.props(remove='label')  # The visible label sits above the whole control.
+            field.props(f'aria-label="{label}"')
+            increase = ui.button(icon='add').props(f'flat aria-label="Increase {label}"')
+        preview = ui.label().classes('duration-preview').props('aria-live=polite')
+
+    def normalize():
+        if field.value is not None and math.isfinite(field.value):
+            # Round input only, never the study planning calculations.
+            field.value = max(minimum, min(maximum, round(field.value, 2)))
+
+    def step(direction):
+        if field.value is not None and math.isfinite(field.value):
+            field.value = max(minimum, min(maximum, round(field.value + direction * 0.25, 2)))
+
+    field.on_value_change(normalize)
+    field.on('keydown.up.prevent', lambda: step(1))
+    field.on('keydown.down.prevent', lambda: step(-1))
+    normalize()
+    preview.bind_text_from(field, 'value', backward=lambda value:
+                          format_duration(value) if value is not None and math.isfinite(value) and value >= 0
+                          else 'Enter a study duration')
+    decrease.on_click(lambda: step(-1)).bind_enabled_from(field, 'value',
+        backward=lambda value: value is not None and math.isfinite(value) and value > minimum)
+    increase.on_click(lambda: step(1)).bind_enabled_from(field, 'value',
+        backward=lambda value: value is not None and math.isfinite(value) and value < maximum)
+    return field
 
 
 def remaining_days(subject):
@@ -644,8 +771,7 @@ def dashboard(request: Request):
     with ui.dialog() as chapter_dialog, ui.card().classes('glass w-full max-w-sm'):
         ui.label('Add Chapter').classes('text-xl font-bold')
         chapter_name = ui.input('Chapter Name').props('maxlength=120 outlined').classes('w-full')
-        chapter_hours = ui.number('Estimated Study Hours', value=1, min=0.001, max=10000, step=0.5) \
-            .classes('w-full')
+        chapter_hours = duration_input('Estimated Study Hours', value=1, minimum=0.001, maximum=10000)
         ui.button('Save Chapter', on_click=save_chapter).classes('w-full')
 
     with ui.dialog() as celebration_dialog:
@@ -673,9 +799,9 @@ def dashboard(request: Request):
 
         show_dashboard()
 
-        with ui.row().classes('w-full items-center gap-3 flex-wrap'):
-            ui.label('Available study hours per day').classes('text-sm')
-            daily_hours = ui.number(value=user_data['settings']['daily_hours'], min=0.5, max=24, step=0.5).classes('w-24')
+        with ui.row().classes('w-full max-w-sm'):
+            daily_hours = duration_input('Available study hours per day',
+                                         value=user_data['settings']['daily_hours'], minimum=0.5, maximum=24)
             daily_hours.on_value_change(save_settings)
 
         ui.label('My Subjects').classes('text-xl font-bold')
