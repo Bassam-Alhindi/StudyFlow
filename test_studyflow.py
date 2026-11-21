@@ -10,6 +10,7 @@ import base64
 import copy
 import http.cookiejar
 import json
+import math
 import os
 import secrets
 import socket
@@ -267,6 +268,141 @@ class PlanningTests(unittest.TestCase):
         self.assertNotEqual(main.recommended_hours(subject), round(expected, 1))
 
 
+class WorkloadTests(unittest.TestCase):
+    def subject(self, hours, days=1, difficulty='Easy', name='Subject'):
+        subject = sample_subject()
+        subject.update(name=name, difficulty=difficulty,
+                       exam_date=(date.today() + timedelta(days=days)).isoformat(),
+                       chapters=[{'name': 'Chapter', 'hours': hours, 'completed': False}])
+        return subject
+
+    def test_tomorrow_seven_hours_with_six_available(self):
+        result = main.analyze_workload([self.subject(7)], 6)
+        self.assertEqual(result['summary']['required'], 7)
+        self.assertEqual(result['summary']['available'], 6)
+        self.assertEqual(result['extra_needed'], 1)
+        self.assertEqual(result['allocated_today'], 6)
+        self.assertEqual(result['urgent']['days'], 1)
+
+    def test_actual_workload_is_separate_from_difficulty_adjustment(self):
+        result = main.analyze_workload([self.subject(7, difficulty='Hard')], 6)
+        self.assertAlmostEqual(result['recommended_today'], 9.1)
+        self.assertEqual(result['summary']['required'], 7)
+        self.assertEqual(result['extra_needed'], 1)
+        self.assertEqual(result['allocated_today'], 6)
+
+    def test_same_deadline_shares_capacity_once(self):
+        result = main.analyze_workload([self.subject(4), self.subject(4, difficulty='Hard')], 6)
+        self.assertEqual(len(result['deadlines']), 1)
+        self.assertEqual(result['summary']['required'], 8)
+        self.assertEqual(result['summary']['available'], 6)
+        self.assertEqual(result['extra_needed'], 2)
+        self.assertEqual([row['allocated'] for row in result['rows']], [4, 2])
+
+    def test_staggered_deadlines_do_not_add_overlapping_deficits(self):
+        result = main.analyze_workload([self.subject(7, days=1), self.subject(8, days=2)], 6)
+        self.assertEqual([point['extra'] for point in result['deadlines']], [1, 3])
+        self.assertEqual(result['extra_needed'], 3)  # The earlier extra hour is part of these three.
+        self.assertEqual(result['urgent']['extra'], 1)
+        self.assertEqual(result['summary']['available'], 12)
+        self.assertEqual(result['summary']['required'], 15)
+
+    def test_later_spare_time_cannot_fix_an_earlier_exam(self):
+        result = main.analyze_workload([self.subject(1, days=10), self.subject(7, days=1)], 6)
+        self.assertEqual(result['extra_needed'], 1)
+        self.assertEqual(result['summary']['days'], 1)
+        self.assertEqual(result['allocated_today'], 6)
+
+    def test_sufficient_time_across_deadlines(self):
+        result = main.analyze_workload([self.subject(3, days=1), self.subject(9, days=2)], 6)
+        self.assertEqual(result['extra_needed'], 0)
+        self.assertIsNone(result['urgent'])
+        self.assertEqual(result['summary']['required'], 12)
+        self.assertEqual(result['summary']['available'], 12)
+        self.assertEqual(result['allocated_today'], 6)
+
+    def test_completed_chapters_are_excluded(self):
+        subject = self.subject(4)
+        subject['chapters'].append({'name': 'Finished', 'hours': 10, 'completed': True})
+        result = main.analyze_workload([subject], 6)
+        self.assertEqual(result['summary']['required'], 4)
+        self.assertEqual(result['extra_needed'], 0)
+
+    def test_today_and_overdue_exams_have_no_available_study_days(self):
+        for days in (0, -1):
+            with self.subTest(days=days):
+                result = main.analyze_workload([self.subject(3, days=days)], 6)
+                self.assertEqual(result['summary']['available'], 0)
+                self.assertEqual(result['extra_needed'], 3)
+                self.assertEqual(result['allocated_today'], 0)
+                self.assertEqual(result['recommended_today'], 0)
+
+    def test_exam_today_does_not_use_time_needed_for_future_subjects(self):
+        result = main.analyze_workload([self.subject(3, days=0), self.subject(6, days=1)], 6)
+        self.assertEqual([row['allocated'] for row in result['rows']], [0, 6])
+        self.assertEqual(result['allocated_today'], 6)
+        self.assertEqual(result['extra_needed'], 3)
+
+    def test_zero_workload_and_completed_subjects(self):
+        completed = self.subject(5)
+        completed['chapters'][0]['completed'] = True
+        for subjects in ([], [self.subject(0)], [completed]):
+            with self.subTest(subjects=subjects):
+                result = main.analyze_workload(subjects, 6)
+                self.assertEqual(result['rows'], [])
+                self.assertIsNone(result['summary'])
+                self.assertEqual(result['extra_needed'], 0)
+                self.assertEqual(result['allocated_today'], 0)
+
+    def test_fractional_workloads_and_small_positive_shortfalls(self):
+        result = main.analyze_workload([self.subject(2.7), self.subject(3.55)], 6)
+        self.assertAlmostEqual(result['extra_needed'], 0.25)
+        self.assertEqual(main.format_duration(result['extra_needed']), '15 min')
+        tiny = main.analyze_workload([self.subject(0.001)], 0)
+        self.assertEqual(main.format_duration(tiny['extra_needed']), '1 min')
+
+    def test_floating_point_noise_is_not_reported_as_extra_work(self):
+        result = main.analyze_workload([self.subject(0.1), self.subject(0.2)], 0.3)
+        self.assertEqual(result['extra_needed'], 0)
+
+    def test_allocation_never_exceeds_daily_budget_or_remaining_work(self):
+        subjects = [self.subject(0.1), self.subject(0.2), self.subject(0.7),
+                    self.subject(0.001, days=2, difficulty='Hard'), self.subject(20, days=3)]
+        for daily in (0, 0.3, 0.5, 0.75, 1, 2.7, 6):
+            with self.subTest(daily=daily):
+                result = main.analyze_workload(subjects, daily)
+                self.assertLessEqual(math.fsum(row['allocated'] for row in result['rows']), daily)
+                for row in result['rows']:
+                    self.assertGreaterEqual(row['allocated'], 0)
+                    self.assertLessEqual(row['allocated'], row['remaining'])
+                    self.assertLessEqual(row['allocated'], row['recommended'])
+
+    def test_priority_is_nearest_exam_then_difficulty(self):
+        subjects = [self.subject(4, days=3, difficulty='Hard', name='Later'),
+                    self.subject(2, name='Easy'), self.subject(2, difficulty='Hard', name='Hard')]
+        result = main.analyze_workload(subjects, 3)
+        self.assertEqual([row['subject']['name'] for row in result['rows']], ['Hard', 'Easy', 'Later'])
+        self.assertEqual([row['allocated'] for row in result['rows']], [2, 1, 0])
+
+    def test_recalculates_changes_without_mutating_subjects(self):
+        subject = self.subject(7)
+        before = copy.deepcopy(subject)
+        self.assertEqual(main.analyze_workload([subject], 6)['extra_needed'], 1)
+        self.assertEqual(subject, before)
+        self.assertEqual(main.analyze_workload([subject], 7)['extra_needed'], 0)
+        subject['exam_date'] = (date.today() + timedelta(days=2)).isoformat()
+        self.assertEqual(main.analyze_workload([subject], 6)['extra_needed'], 0)
+        subject['chapters'][0]['hours'] = 13
+        self.assertEqual(main.analyze_workload([subject], 6)['extra_needed'], 1)
+        subject['chapters'][0]['completed'] = True
+        self.assertEqual(main.analyze_workload([subject], 6)['extra_needed'], 0)
+
+    def test_invalid_daily_hours_are_rejected(self):
+        for daily in (-1, float('inf'), float('nan')):
+            with self.assertRaises(ValueError):
+                main.analyze_workload([self.subject(1)], daily)
+
+
 class HTTPTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -382,6 +518,33 @@ class HTTPTests(unittest.TestCase):
         self.assertNotIn('Algorithms', self.request(second, '/').body.decode())
         # User IDs and filenames supplied by a visitor do not select another user's data.
         self.assertNotIn('Algorithms', self.request(second, '/?user_id=http_alpha').body.decode())
+
+    def test_workload_summary_recalculates_saved_data(self):
+        browser = self.signup('workload_student')
+        token = self.session(browser)['token']
+        subject = sample_subject()
+        subject.update(difficulty='Easy', exam_date=(date.today() + timedelta(days=1)).isoformat(),
+                       chapters=[{'name': 'Graphs', 'hours': 7, 'completed': False}])
+        with patch.object(store, 'PRIVATE_DIR', Path(self.folder.name) / 'studyflow_private'):
+            store.update_user(token, {'subjects': [subject], 'settings':
+                              {'daily_hours': 6, 'study_minutes': 25, 'break_minutes': 5}})
+        page = self.request(browser, '/').body.decode()
+        self.assertIn('Consider adding 1 extra hour today.', page)
+        self.assertIn('Extra needed', page)
+        self.assertIn('Allocated today: 6 hrs', page)
+        with patch.object(store, 'PRIVATE_DIR', Path(self.folder.name) / 'studyflow_private'):
+            store.update_user(token, {'settings': {'daily_hours': 7, 'study_minutes': 25, 'break_minutes': 5}})
+        self.assertIn('Your remaining workload fits before these exams.', self.request(browser, '/').body.decode())
+        subject['exam_date'] = date.today().isoformat()
+        with patch.object(store, 'PRIVATE_DIR', Path(self.folder.name) / 'studyflow_private'):
+            store.update_user(token, {'subjects': [subject]})
+        page = self.request(browser, '/').body.decode()
+        self.assertIn('Allocated today: 0 min', page)
+        self.assertIn('No study days before exam', page)
+        subject['chapters'][0]['completed'] = True
+        with patch.object(store, 'PRIVATE_DIR', Path(self.folder.name) / 'studyflow_private'):
+            store.update_user(token, {'subjects': [subject]})
+        self.assertIn('Add chapters to generate your study plan.', self.request(browser, '/').body.decode())
 
     def test_login_rate_limit_over_http(self):
         browser = self.signup('limited_student')

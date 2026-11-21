@@ -131,7 +131,7 @@ async def auth_submit(action: str, request: Request):
 
 
 def notice(message, icon='check_circle'):
-    ui.notify(message, position='bottom', timeout=2500,
+    ui.notify(message, position='top', timeout=2500,
               color='#292342', text_color='white', icon=icon)
 
 
@@ -163,6 +163,12 @@ def apply_theme():
         background:#30254d!important;border:1px solid #7963b4;
         border-left:4px solid #a78bfa;border-radius:14px!important;
         padding:15px 18px!important}
+    .workload-summary {border:1px solid #514365;border-radius:14px;padding:16px;
+        background:#211c32;width:100%}
+    .workload-summary.is-balanced {border-color:#3e535c;background:#192530}
+    .workload-stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}
+    .workload-value {font-size:18px;font-weight:600;color:#e3d5ff;overflow-wrap:anywhere}
+    .workload-summary.is-balanced .workload-value {color:#bfdcda}
     .focus-card {background:#151326!important;border:1px solid #393052!important;
         overflow:hidden;isolation:isolate}
     .focus-expanded {
@@ -256,16 +262,20 @@ def apply_theme():
         box-shadow:0 24px 80px #03051166,inset 0 1px #dfc9ff0a;
         animation:authEntrance .65s cubic-bezier(.2,.7,.3,1) both}
     .auth-brand {gap:12px;align-items:center;color:#e1d0ff}
-    .auth-brand-name {font-size:25px;font-weight:650;letter-spacing:-.8px}
-    .auth-book {width:54px;height:48px;flex-shrink:0;filter:drop-shadow(0 3px 10px #8b5cf633)}
+    .auth-brand-name {font-size:25px;font-weight:650;letter-spacing:-.8px;
+        text-shadow:0 0 18px #a879ea40}
+    .auth-book {width:54px;height:48px;flex-shrink:0;filter:drop-shadow(0 2px 10px #a775ef50);
+        animation:bookAppear 1.4s cubic-bezier(.2,.7,.25,1) both}
     .auth-book svg {width:100%;height:100%;overflow:visible}
     .book-left,.book-right {transform-origin:40px 32px;transform:rotateY(0deg);
-        animation:bookOpenLeft 1.15s cubic-bezier(.2,.7,.25,1) both}
+        animation:bookOpenLeft 1.4s cubic-bezier(.2,.7,.25,1) both}
     .book-right {animation-name:bookOpenRight}
     @keyframes bookOpenLeft {from{transform:perspective(160px) rotateY(86deg)}
         to{transform:perspective(160px) rotateY(0deg)}}
     @keyframes bookOpenRight {from{transform:perspective(160px) rotateY(-86deg)}
         to{transform:perspective(160px) rotateY(0deg)}}
+    @keyframes bookAppear {from{opacity:0;transform:translateY(4px) scale(.94)}
+        to{opacity:1;transform:translateY(0) scale(1)}}
     @keyframes authEntrance {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     .auth-intro {gap:10px}
     .auth-title {margin:0;font-size:31px;font-weight:650;letter-spacing:-1px;line-height:1.2;color:#f8f5ff}
@@ -448,6 +458,50 @@ def recommended_hours(subject):
     return max(0.1, hours / days) if days and hours else hours
 
 
+def analyze_workload(subjects, daily_hours):
+    """Check cumulative deadlines against one shared budget, excluding exam day."""
+    if not math.isfinite(daily_hours) or daily_hours < 0:
+        raise ValueError('Daily study hours must be finite and non-negative.')
+    pending = sorted((s for s in subjects if remaining_hours(s) > 0), key=lambda s: (
+        s['exam_date'], -{'Easy': 1, 'Medium': 2, 'Hard': 3}.get(s['difficulty'], 2)))
+    rows, deadlines, workloads, allocations = [], [], [], []
+    for subject in pending:
+        hours = remaining_hours(subject)
+        days = remaining_days(subject)
+        recommendation = recommended_hours(subject) if days else 0
+        budget = max(0, daily_hours - math.fsum(allocations))
+        allocated = min(budget, hours, recommendation) if days else 0
+        total = math.fsum(allocations + [allocated])
+        while total > daily_hours:
+            # Correct binary addition overflow without rounding the workload.
+            allocated = max(0, allocated - (total - daily_hours))
+            total = math.fsum(allocations + [allocated])
+        allocations.append(allocated)
+        rows.append({'subject': subject, 'remaining': hours, 'days': days,
+                     'recommended': recommendation, 'allocated': allocated})
+        workloads.append(hours)
+        required = math.fsum(workloads)
+        available = days * daily_hours
+        # Ignore floating-point noise, but keep genuine fractional shortfalls.
+        extra = 0 if math.isclose(required, available, rel_tol=1e-12, abs_tol=1e-9) \
+            else max(0, required - available)
+        deadline = {'date': subject['exam_date'], 'days': days, 'required': required,
+                    'available': available, 'extra': extra}
+        if deadlines and deadlines[-1]['date'] == subject['exam_date']:
+            deadlines[-1] = deadline  # Subjects sharing an exam date share the same capacity.
+        else:
+            deadlines.append(deadline)
+    conflicts = [deadline for deadline in deadlines if deadline['extra'] > 0]
+    summary = max(conflicts, key=lambda deadline: deadline['extra']) if conflicts \
+        else (deadlines[-1] if deadlines else None)
+    # The largest cumulative deficit is the total extra time, not the sum of deficits.
+    return {'rows': rows, 'deadlines': deadlines, 'summary': summary,
+            'urgent': conflicts[0] if conflicts else None,
+            'extra_needed': summary['extra'] if summary else 0,
+            'allocated_today': math.fsum(allocations),
+            'recommended_today': math.fsum(row['recommended'] for row in rows)}
+
+
 @ui.page('/', title='StudyFlow')
 def dashboard(request: Request):
     token = request.session.get('token', '')
@@ -461,6 +515,7 @@ def dashboard(request: Request):
     selected_subject = None
     opened_subject = [None]
     syncing_settings = False
+    plan_date = date.today()
 
     def save_data():
         nonlocal user_data
@@ -679,13 +734,10 @@ def dashboard(request: Request):
                             .classes('text-xs text-gray-400')
                     if remaining_hours(subject):
                         if remaining_days(subject) == 0:
-                            ui.label('Exam is today or overdue').classes('text-xs text-red-400')
+                            ui.label('No study days remain before the exam').classes('text-xs text-gray-400')
                         else:
                             ui.label(f'Suggested: {format_duration(recommended_hours(subject))}/day') \
                                 .classes('text-xs text-purple-300')
-                            if recommended_hours(subject) > float(daily_hours.value or 0):
-                                ui.label('Study workload may be too high') \
-                                    .classes('text-xs text-orange-400')
                     for chapter in chapters:
                         with ui.row().classes('w-full items-center gap-2 flex-nowrap'):
                             ui.checkbox(value=chapter['completed'],
@@ -719,27 +771,45 @@ def dashboard(request: Request):
 
     @ui.refreshable
     def show_plan():
-        pending = [s for s in subjects if remaining_hours(s) > 0]
-        if not pending:
+        analysis = analyze_workload(subjects, float(daily_hours.value or 0))
+        if not analysis['rows']:
             ui.label('Add chapters to generate your study plan.').classes('text-gray-400')
             return
-        pending.sort(key=lambda s: (
-            remaining_days(s),
-            -{'Easy': 1, 'Medium': 2, 'Hard': 3}.get(s['difficulty'], 2)
-        ))
-        available = float(daily_hours.value or 0)
-        total = sum(recommended_hours(s) for s in pending)
+        summary, urgent = analysis['summary'], analysis['urgent']
+        with ui.column().classes('workload-summary' + ('' if urgent else ' is-balanced')):
+            ui.label(f'Before {summary["date"]}').classes('text-xs text-gray-400')
+            with ui.element('div').classes('workload-stats'):
+                for label, value in [('Required', summary['required']), ('Available', summary['available']),
+                                     ('Extra needed', summary['extra'])]:
+                    with ui.column().classes('gap-1 min-w-0'):
+                        ui.label(label).classes('text-xs text-gray-400')
+                        ui.label(format_duration(value)).classes('workload-value')
+            if not urgent:
+                message = 'Your remaining workload fits before these exams.'
+            elif urgent['days'] == 0:
+                message = 'Check the exam date for chapters with no study days remaining.'
+            elif urgent['days'] == 1:
+                message = ('Consider adding 1 extra hour today.' if urgent['extra'] == 1 else
+                           f'Consider adding an extra {format_duration(urgent["extra"])} today.')
+            else:
+                message = f'Consider adding {format_duration(urgent["extra"])} before {urgent["date"]}.'
+            ui.label(message).classes('text-sm text-gray-300')
+            if urgent and urgent['date'] != summary['date']:
+                ui.label(f'{format_duration(urgent["extra"])} of the extra time is needed before {urgent["date"]}.') \
+                    .classes('text-xs text-gray-400')
         with ui.card().classes('glass w-full p-4 gap-2'):
-            ui.label(f'Recommended workload: {format_duration(total)}/day').classes('font-bold')
-            if total > available:
-                ui.label('Your available study hours may not be enough.') \
-                    .classes('text-orange-400 text-sm')
-            for subject in pending:
-                allocated = min(available, recommended_hours(subject))
+            ui.label(f'Allocated today: {format_duration(analysis["allocated_today"])}').classes('font-bold')
+            ui.label(f'Difficulty-adjusted pace: {format_duration(analysis["recommended_today"])}/day') \
+                .classes('text-xs text-gray-400')
+            for row in analysis['rows']:
+                subject = row['subject']
                 with ui.row().classes('w-full justify-between'):
                     ui.label(subject['name']).classes('text-sm')
-                    ui.label(f'{format_duration(allocated)} today').classes('text-sm text-purple-300')
-                available = max(0, available - allocated)
+                    ui.label(f'{format_duration(row["allocated"])} today').classes('text-sm text-purple-300')
+                details = (f'Suggested {format_duration(row["recommended"])}/day' if row['days'] else
+                           'No study days before exam')
+                ui.label(f'Remaining {format_duration(row["remaining"])} · Exam {subject["exam_date"]} · {details}') \
+                    .classes('text-xs text-gray-400 break-words')
 
 
     with ui.dialog() as color_dialog, ui.card().classes('glass w-full max-w-sm'):
@@ -931,7 +1001,7 @@ def dashboard(request: Request):
             update_sessions()
 
             def tick():
-                nonlocal user_data
+                nonlocal user_data, plan_date
                 try:
                     latest = store.read_user(token)
                 except store.AuthenticationError:
@@ -942,6 +1012,9 @@ def dashboard(request: Request):
                     polling.deactivate()
                     notice('Unable to read saved data. Reload to try again.', 'warning')
                     return
+                if date.today() != plan_date:
+                    plan_date = date.today()
+                    refresh_all()  # Deadlines also change when the calendar day rolls over.
                 if latest['revision'] != user_data['revision']:
                     subjects_changed = latest['subjects'] != user_data['subjects']
                     settings_changed = latest['settings'] != user_data['settings']
