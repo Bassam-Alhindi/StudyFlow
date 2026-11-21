@@ -19,7 +19,7 @@ from filelock import FileLock
 
 DATA_DIR = Path(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '.'))
 PRIVATE_DIR = DATA_DIR / 'studyflow_private'
-SESSION_SECONDS = 7 * 24 * 60 * 60
+SESSION_SECONDS = 30 * 24 * 60 * 60
 PASSWORD_HASHER = PasswordHasher()  # Argon2id includes a new random salt for each password.
 # Unknown usernames still perform a password check, reducing timing differences.
 DUMMY_HASH = PASSWORD_HASHER.hash(secrets.token_urlsafe(32))
