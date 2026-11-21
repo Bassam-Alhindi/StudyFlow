@@ -7,8 +7,11 @@ import time
 import os
 
 ui.page_title('StudyFlow')
-DATA_FILE = Path('studyflow.json')
-SESSIONS_FILE = Path('study_sessions.json')
+DATA_DIR = Path(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '.'))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DATA_FILE = DATA_DIR / 'studyflow.json'
+SESSIONS_FILE = DATA_DIR / 'study_sessions.json'
 COLORS = ['#8B5CF6', '#3B82F6', '#06B6D4', '#10B981',
           '#F59E0B', '#EC4899', '#EF4444', '#6366F1']
 
