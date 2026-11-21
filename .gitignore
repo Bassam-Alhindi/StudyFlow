@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 studyflow.json
 study_sessions.json
+studyflow_private/
+.nicegui/
+.env.*
+!.env.example
