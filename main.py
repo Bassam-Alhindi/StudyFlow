@@ -318,7 +318,7 @@ def auth_page(request, signup=False):
         return RedirectResponse('/')
     request.session.setdefault('csrf', secrets.token_urlsafe(32))
     apply_theme()
-    title = 'Create your account' if signup else 'Welcome back'
+    title = 'Create your account' if signup else 'Welcome to StudyFlow'
     with ui.column().classes('w-full auth-shell'):
         with ui.card().classes('glass auth-card'):
             with ui.row().classes('auth-brand'):
